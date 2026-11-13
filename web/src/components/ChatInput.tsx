@@ -1032,33 +1032,22 @@ export const ChatInput = memo(function ChatInput({
 		}
 		const images = Array.from(files).filter((f) => isRasterImage(f.type));
 		const others = Array.from(files).filter((f) => !isRasterImage(f.type));
-		// P1-7：当前模型明确不支持图片（vision === false）时拒绝图片附件。
-		const noVision = currentModelNoVision();
-		if (images.length > 0 && noVision) {
-			onNotice("warning", noVision);
-		} else if (images.length > 0) {
-			onAddImageFiles(images);
-		}
+		// 图片一律附加，不再按模型能力拒绝：纯文本模型也能用 —— 服务端视觉桥会把
+		// 图片转写成文本（见 server/attachments.ts 的 transcribeImages），这也是
+		// 上游 pi-web 的行为。无视觉能力时的提示由 App.attachImage 统一发出
+		// （imageNotSupported），避免这里再叠一层拦截把用户拖进来的图丢掉。
+		if (images.length > 0) onAddImageFiles(images);
 		if (others.length > 0) onAddLocalFiles(others);
 	};
 
 	const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
 		// 粘贴板里带真文件（文件管理器复制 / 截图 / 混合内容）→ 当附件附加；
-		// 与拖拽同走 handleFiles：图片走视觉管线（含 noVision 拦截），其余走
-		// fileData 上传。拿不到文件就是纯文本粘贴，不 preventDefault。
+		// 与拖拽同走 handleFiles：图片走视觉管线，其余走 fileData 上传。
+		// 拿不到文件就是纯文本粘贴，不 preventDefault。
 		const files = collectClipboardFiles(e.clipboardData?.items, e.clipboardData?.files);
 		if (files.length === 0) return; // plain text paste — leave the default
 		e.preventDefault();
 		handleFiles(files);
-	};
-
-	/** 当前模型在模型清单中标记为 text-only（vision === false）→ 返回提示文案。
-	 *  pi 引擎/自定义模型无此标记（undefined）→ 不阻止（视觉桥/后端兜底）。 */
-	const currentModelNoVision = (): string | null => {
-		const m = modelState?.model;
-		if (!m?.id) return null;
-		const info = models.find((x) => x.id === m.id);
-		return info && info.vision === false ? t("modelNoVision", { name: info.name }) : null;
 	};
 
 	const connected = ready;

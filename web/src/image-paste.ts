@@ -32,21 +32,76 @@ export function isRasterImage(mime: string): boolean {
 }
 
 /**
+ * Decoded image ready to draw: an ImageBitmap when the browser supports
+ * createImageBitmap, otherwise a plain <img> element (the browser's own
+ * image decoder). Both are valid CanvasImageSource for drawImage.
+ */
+interface DecodedImage {
+	source: CanvasImageSource;
+	width: number;
+	height: number;
+	/** Release the bitmap / object URL. Safe to call after drawing. */
+	close: () => void;
+}
+
+/**
+ * Decode an image File with fallbacks:
+ * 1. createImageBitmap with EXIF orientation (best),
+ * 2. createImageBitmap without options (some old browsers reject the options dict),
+ * 3. <img> element + object URL (the browser's own decoder — works where
+ *    createImageBitmap is broken, e.g. Win7 Edge 109 which fails steps 1-2
+ *    and surfaces as "图片读取失败").
+ * Returns null only when no decoder can read the file.
+ */
+async function decodeImage(file: File): Promise<DecodedImage | null> {
+	try {
+		const b = await createImageBitmap(file, { imageOrientation: "from-image" });
+		return { source: b, width: b.width, height: b.height, close: () => b.close() };
+	} catch {
+		/* fall through */
+	}
+	try {
+		const b = await createImageBitmap(file);
+		return { source: b, width: b.width, height: b.height, close: () => b.close() };
+	} catch {
+		/* fall through */
+	}
+	try {
+		const url = URL.createObjectURL(file);
+		try {
+			const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+				const el = new Image();
+				el.onload = () => resolve(el);
+				el.onerror = () => reject(new Error("img decode failed"));
+				el.src = url;
+			});
+			return {
+				source: img,
+				width: img.naturalWidth,
+				height: img.naturalHeight,
+				close: () => URL.revokeObjectURL(url),
+			};
+		} catch {
+			URL.revokeObjectURL(url);
+			return null;
+		}
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Read + downscale + encode an image File. Returns null when the browser
  * can't decode it (e.g. unsupported format) or it isn't an image.
  */
 export async function fileToProcessedImage(file: File): Promise<ProcessedImage | null> {
 	if (!file.type.startsWith("image/")) return null;
-	let bitmap: ImageBitmap;
+	const decoded = await decodeImage(file);
+	if (!decoded) return null;
 	try {
-		bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-	} catch {
-		return null;
-	}
-	try {
-		const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-		const w = Math.max(1, Math.round(bitmap.width * scale));
-		const h = Math.max(1, Math.round(bitmap.height * scale));
+		const scale = Math.min(1, MAX_DIMENSION / Math.max(decoded.width, decoded.height));
+		const w = Math.max(1, Math.round(decoded.width * scale));
+		const h = Math.max(1, Math.round(decoded.height * scale));
 
 		// Lossy sources (photos) go straight to JPEG; lossless ones (screenshots,
 		// PNG exports) try PNG first and only flatten onto white + JPEG when PNG
@@ -76,7 +131,7 @@ export async function fileToProcessedImage(file: File): Promise<ProcessedImage |
 				ctx.fillStyle = "#ffffff";
 				ctx.fillRect(0, 0, w, h);
 			}
-			ctx.drawImage(bitmap, 0, 0, w, h);
+			ctx.drawImage(decoded.source, 0, 0, w, h);
 			const dataUrl = canvas.toDataURL(mime, quality);
 			// Trust the actual output mime (browsers silently fall back to PNG
 			// when an encoder is missing, e.g. webp on older Safari).
@@ -91,6 +146,6 @@ export async function fileToProcessedImage(file: File): Promise<ProcessedImage |
 		// server will reject it with a readable notice.
 		return last;
 	} finally {
-		bitmap.close();
+		decoded.close();
 	}
 }

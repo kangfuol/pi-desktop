@@ -12,6 +12,22 @@
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<title>PI</title>
+		<!-- AbortSignal.any polyfill (pi-desktop local patch, 2026-11-13): the client bundle calls AbortSignal.any (Chrome/Edge >= 116) in device-center fetches; Edge 109 on Win7 throws. No-op on modern browsers. Kept in source so rebuilds keep it; re-apply after git pull. -->
+		<script>
+			(function () {
+				if (typeof AbortSignal === "undefined" || typeof AbortSignal.any === "function") return;
+				AbortSignal.any = function (signals) {
+					var controller = new AbortController();
+					var onAbort = function () { controller.abort(); };
+					for (var i = 0; i < signals.length; i++) {
+						var s = signals[i];
+						if (s.aborted) { controller.abort(); break; }
+						s.addEventListener("abort", onAbort, { once: true });
+					}
+					return controller.signal;
+				};
+			})();
+		</script>
 		<!-- 插件公共依赖 Import Maps（支持子路径反代部署） -->
 		<script type="importmap">
 			{

@@ -257,6 +257,9 @@ const KNOWN_VISION_PATTERNS: RegExp[] = [
 	/(?:^|[-_/])(?:chatgpt[-_]4o|gpt[-_](?:4o|4[._-][15-9]|[5-9]|vision)|o[134](?![-_]mini)(?:[-_](?:pro|high|low|medium|max|preview))?(?:[-_/]|$))/i,
 	// 阿里 Qwen-VL / Qwen3.5+ / Qwen3.8 / Omni、智谱 GLM-4V、Mistral Pixtral、xAI Grok-2-Vision / Grok-3 / Grok-4、Kimi k2.5
 	/(?:^|[-_/])(?:qwen(?:[-_a-z0-9.]*)?(?:-vl|3[._-][58]|omni)|glm[-_]4v|pixtral|grok[-_](?:[3-9]|.*vision)|kimi[-_]k2[._-]5|doubao.*vision|step[-_]1v)/i,
+	// DeepSeek V4.1 Flash 原生多模态（2026-09-10 起 deepseek-flash 即 V4.1 Flash，支持图片输入；
+	// deepseek-v4-pro 仍为纯文本，不在此列；旧名 deepseek-v4-flash / deepseek-v4-flash-vision-exp 亦路由至 V4.1 Flash）
+	/(?:^|[-_/])deepseek[-_](?:v4(?:[._-]1)?[-_])?flash(?:[-_/]|$)/i,
 ];
 
 /**

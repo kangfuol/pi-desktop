@@ -5910,7 +5910,7 @@ export class ClientSession {
 			name: this.cleanModelDisplayName(m.name),
 			provider: m.provider,
 			reasoning: m.reasoning,
-			vision: m.input?.includes("image") ?? false,
+			vision: supportsModelVision(m),
 		}));
 	}
 
@@ -5920,7 +5920,7 @@ export class ClientSession {
 			return available.map((m) => ({
 				id: `${m.provider}/${m.id}`,
 				provider: m.provider,
-				vision: m.input?.includes("image") ?? false,
+				vision: supportsModelVision(m),
 			}));
 		} catch {
 			return [];
